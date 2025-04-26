@@ -1,0 +1,237 @@
+#!/usr/bin/perl
+
+# breyti skráningum á greinum í jökli af bib-formi yfir á xml-form fyrir crossref
+
+# 1-15.12.2011, TJ
+
+use Getopt::Std;
+use POSIX;
+use Text::BibTeX;
+
+use POSIX qw(locale_h);
+use Time::Piece;
+use Time::HiRes;
+use locale;
+
+$skipun = $0;
+$skipun =~ s&.*/&&;
+$sdoc = "$skipun: umrita skráningu á greinum í jökli af bib-formi á xml-form fyrir crossref
+Notkun: $skipun [rofar] [texti í haus]
+rofar:
+-n  : depositor name
+-m  : depositor e-mail
+-y  : árgangur
+-v  : tölublað
+-o  : dags. vefbirtingar (sjálfg. 99 99 útgáfuárs)
+-1/2/3 : dags. vefbirtingar (sjálfg. 99 99 útgáfuárs)
+-p  : dags. prentunar (sjálfg. 15. des. útgáfurárs)
+-a/b/c : dags. prentunar (sjálfg. 15. des. útgáfurárs)
+-t  : engar upplýsingar um keyrslu skrifaðar út
+-e  : enginn xml haus eða hali
+-h";
+
+$main::VERSION = "0.1";
+
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+sub main::HELP_MESSAGE {
+  if (defined $_[0]) { print STDERR $_[0], "\n"; }
+  print STDERR $sdoc, "\n"; exit; 
+}
+
+setlocale(LANG,"is_IS.UTF-8");
+setlocale(LC_ALL,"is_IS.UTF-8");
+setlocale(LC_NUMERIC, "C");
+
+$JOKDOI = "10.33799";
+$PREDOI = "https://jokull.jorfi.is/articles";
+
+getopts('n:m:y:v:o:1:2:3:p:a:b:c:tehH');
+if (defined $opt_n) { $DNAME=$opt_n; } else { $DNAME="Tómas Jóhannesson"; }
+if (defined $opt_m) { $DMAIL=$opt_m; } else { $DMAIL="tj\@vedur.is"; }
+if (defined $opt_y) { $YEAR=$opt_y; } else { $YEAR=9999; }
+if (defined $opt_v) { $VOLUME=$opt_v; } else { $VOLUME=99; }
+if (defined $opt_o) { $ODATE=$opt_o; }
+if (defined $opt_1) { $OYEAR=$opt_1; }
+if (defined $opt_2) { $OMON=$opt_2; } else { $OMON=99; }
+if (defined $opt_2) { $ODAY=$opt_3; } else { $ODAY=99; }
+if (defined $opt_p) { $PDATE=$opt_w; }
+if (defined $opt_a) { $PYEAR=$opt_a; }
+if (defined $opt_b) { $PMON=$opt_b; } else { $PMON=12; }
+if (defined $opt_c) { $PDAY=$opt_c; } else { $PDAY=15; }
+if (defined $opt_t) { $SILENT=1; }
+if (defined $opt_e) { $EHH=1; }
+if (defined $opt_h || defined $opt_H) { HELP_MESSAGE(); }
+
+if (!defined($OYEAR)) { $OYEAR=$YEAR; }
+if (!defined($PYEAR)) { $PYEAR=$YEAR; }
+
+if (defined($ODATE)) { @osplt = split("-",$ODATE); $OYEAR=@osplt[0]; $OMON=@osplt[1]; $ODAY=@osplt[2]; }
+if (defined($PDATE)) { @psplt = split("-",$PDATE); $PYEAR=@psplt[0]; $PMON=@psplt[1]; $PDAY=@psplt[2]; }
+
+if ($#ARGV >= 0) { $FILENAME=shift(@ARGV); } else { HELP_MESSAGE("Það þarf að gefa upp nafn á bib-skrá."); }
+
+##my $datetimestr = strftime("%Y%m%d%H%M%S", localtime);
+##my $datetimestr = DateTime->from_epoch( epoch => time )->strftime("%Y%m%d%H%M%S.%6N");
+#my $time = 1445400376.20984;
+#my $microsecs = ($time - int($time)) * 1e6;
+#my $datetimestr = sprintf("%s%06.0f", strftime("%Y%m%d%H%M%S",localtime($time)),microsecs);
+my ($seconds,$microseconds) = Time::HiRes::gettimeofday;
+my $datetimestr = sprintf('%s%03.0f', gmtime($seconds)->strftime("%Y%m%d%H%M%S"), $microseconds/1000);
+my $batchid = sprintf("arg_%03d_%03d",rand(999),rand(999));
+
+sub haus { if (!defined $EHH) {
+  print "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+  print "<doi_batch xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"
+\txsi:schemaLocation=\"http://www.crossref.org/schema/4.8.0 https://www.crossref.org/schemas/crossref4.8.0.xsd\"
+\txmlns=\"http://www.crossref.org/schema/4.8.0\" xmlns:jats=\"http://www.ncbi.nlm.nih.gov/JATS1\"
+\txmlns:fr=\"http://www.crossref.org/fundref.xsd\" version=\"4.8.0\">";
+  print "\t<head>
+\t\t<doi_batch_id>$batchid</doi_batch_id>
+\t\t<timestamp>$datetimestr</timestamp>
+\t\t<depositor>
+\t\t\t<depositor_name>$DNAME</depositor_name>
+\t\t\t<email_address>$DMAIL</email_address>
+\t\t</depositor>
+\t\t<registrant>Iceland Glaciological Society</registrant>
+\t</head>";
+  print "\t<body>
+\t\t<journal>
+\t\t\t<journal_metadata language=\"en\">
+\t\t\t\t<full_title>Jökull</full_title>
+\t\t\t\t<abbrev_title>Jök</abbrev_title>
+\t\t\t\t<doi_data>
+\t\t\t\t\t<doi>$JOKDOI/999</doi>
+\t\t\t\t\t<resource>https://jokull.jorfi.is</resource>
+\t\t\t\t</doi_data>
+\t\t\t</journal_metadata>
+\t\t\t<journal_issue>
+\t\t\t\t<publication_date media_type=\"online\">
+\t\t\t\t\t<month>$OMON</month>
+\t\t\t\t\t<day>$ODAY</day>
+\t\t\t\t\t<year>$OYEAR</year>
+\t\t\t\t\t</publication_date>
+\t\t\t\t<publication_date media_type=\"print\">
+\t\t\t\t\t<month>$PMON</month>
+\t\t\t\t\t<day>$PDAY</day>
+\t\t\t\t\t<year>$PYEAR</year>
+\t\t\t\t</publication_date>
+\t\t\t\t<journal_volume>
+\t\t\t\t\t<volume>$VOLUME</volume>
+\t\t\t\t</journal_volume>
+\t\t\t\t<issue>1</issue>
+\t\t\t</journal_issue>\n";
+}}
+
+sub hali { if (!defined $EHH) {
+  print "\t\t</journal>
+\t</body>
+</doi_batch>\n";
+}}
+
+haus;
+our $bibfile = Text::BibTeX::File->new($FILENAME);
+our $NR = 0;
+while ($entry = Text::BibTeX::Entry->new($bibfile))
+{
+   next unless $entry->parse_ok;
+   $NR++;
+   my $metatype = $entry->metatype;
+   my $type = $entry->type;
+   my $key = $entry->key;
+   my $num_fields = $entry->num_fields;
+   my @fieldlist = $entry->fieldlist;
+   my $title = $entry->get('title');
+   $title =~ s/[{}]//g;
+   my @authors = $entry->split("author");
+   $nauthors = @authors;
+   my $journal = $entry->get('journal');
+   my $year = $entry->get('year');
+   my $volume = $entry->get('volume');
+   my $pages = $entry->get('pages');
+   my $tpdoi = $entry->get('tpdoi');
+   my $doi = $entry->get('doi');
+   my $url = $entry->get('url');
+   my $abstract = $entry->get('abstract');
+   my @psplit = split("-",$pages);
+   my $p1 = @psplit[0];
+   my $p2 = @psplit[$#psplit];
+   if (!defined($doi)) { $doi = sprintf("%s/jokull%d.%02d.%03d%s",$JOKDOI,$year,$volume,$p1,$tpdoi); }
+   if (!defined($url)) { $url = sprintf("%s/jokull%d.%02d/jokull%d.%02d.%03d%s.pdf",$PREDOI,$year,$volume,$year,$volume,$p1,$tpdoi); }
+   #print "TYPE: $type\n";
+   #print "METATYPE: $metatype\n";
+   #print "KEY: $key \n";
+   #print "TITLE: $title\n";
+   #print "number of authors: $nauthors\n";
+   #print "AUTHOR1: $authors[0]\n";
+   #print "AUTHOR2: $authors[1]\n";
+   #foreach my $a (@authors) { print "$a\n"; }
+   #print "JOURNAL: $journal\n";
+   #print "YEAR: $year\n";
+   #print "VOLUME: $volume\n";
+   #print "PAGES: $pages\n";
+   #print "P1: $p1\n";
+   #print "P2: $p2\n";
+   #print "DOI: $doi\n";
+   #print "URL: $url\n";
+   #print "ABSTRACT: ";
+   #if (!defined($abstract)) { print "NONE\n"; } else { print "$abstract\n"; }
+   if ( $tpdoi ne "x") {
+   print "\t\t\t<journal_article publication_type=\"full_text\">
+\t\t\t\t<titles>
+\t\t\t\t\t<title>$title</title>
+\t\t\t\t</titles>\n";
+   my $na = 1;
+   my $seqn = "first";
+   print "\t\t\t\t<contributors>\n";
+   foreach my $a (@authors) {
+   if ($na++ > 1) { $seqn="additional"; }
+   if ($a eq "Jöklarannsóknafélag Íslands" || $a eq "Jarðfræðafélag Íslands" || $a eq "N.N." || $a eq "Ýmsir höfundar" || $a eq "Ýmislegt") {
+       $gn = "";
+       $sn = $a;
+       $sf = "";
+   } elsif ($a =~ /^\S*$/) {
+       $gn = "";
+       $sn = $a;
+       $sf = "";
+   } elsif ($a =~ /Jr\.\s*$/) { $gn = $a; $gn =~ s/\s+\S+\s+\S+$//;
+                                $sn = $a; while ($sn =~ /\s*\S+\s+\S+\s+Jr\.\s*$/) { $sn =~ s/^\S+\s+//; } $sn =~ s/,*\s+Jr\.\s*$//; 
+				$sf = "Jr.";
+   } else { $gn = $a; $gn =~ s/\s+\S+$//;
+	    $sn = $a; $sn =~ s/^.*\s+//;
+            $sf = "";
+   }
+   print "\t\t\t\t\t<person_name sequence=\"$seqn\" contributor_role=\"author\">\n";
+   if (length($gn)>0) { print "\t\t\t\t\t\t<given_name>$gn</given_name>\n"; }
+   if (length($sn)>0) { print "\t\t\t\t\t\t<surname>$sn</surname>\n"; }
+   if (length($sf)>0) { print "\t\t\t\t\t\t<suffix>$sf</suffix>\n"; }
+   print "\t\t\t\t\t</person_name>\n";
+   }
+   print "\t\t\t\t</contributors>\n";
+   if (defined($abstract)) { $abstract =~ s/>/\\&gt;/;  $abstract =~ s/</\\&lt;/; 
+      print "\t\t\t\t<jats:abstract>
+\t\t\t\t\t<jats:p>$abstract</jats:p>
+\t\t\t\t</jats:abstract>\n"; }
+   print("\t\t\t\t<publication_date media_type=\"online\">
+\t\t\t\t\t<month>$OMON</month>
+\t\t\t\t\t<day>$ODAY</day>
+\t\t\t\t\t<year>$OYEAR</year>
+\t\t\t\t\t</publication_date>
+\t\t\t\t<publication_date media_type=\"print\">
+\t\t\t\t\t<month>$PMON</month>
+\t\t\t\t\t<day>$PDAY</day>
+\t\t\t\t\t<year>$PYEAR</year>
+\t\t\t\t</publication_date>\n");
+   print("\t\t\t\t<pages>
+\t\t\t\t\t<first_page>$p1</first_page>
+\t\t\t\t\t<last_page>$p2</last_page>
+\t\t\t\t</pages>\n");
+   print("\t\t\t\t<doi_data>
+\t\t\t\t\t<doi>$doi</doi>
+\t\t\t\t\t<resource content_version=\"vor\">$url</resource>
+\t\t\t\t</doi_data>
+\t\t\t</journal_article>\n");
+   #print "!!! $NR";
+}}
+hali;
+
+if (!defined $SILENT) { print STDERR "samtals $NR greinar skrifaðar út\n"; }
